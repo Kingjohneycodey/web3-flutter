@@ -4,8 +4,9 @@ import 'package:reown_appkit/reown_appkit.dart';
 
 class AuthenticationTab extends StatefulWidget {
   final ReownAppKitModal? appKit;
+  final VoidCallback initAppKit;
 
-  const AuthenticationTab({super.key, required this.appKit});
+  const AuthenticationTab({super.key, required this.appKit, required this.initAppKit});
 
   @override
   State<AuthenticationTab> createState() => _AuthenticationTabState();
@@ -274,7 +275,12 @@ class _AuthenticationTabState extends State<AuthenticationTab> {
             const SizedBox(height: 16),
             AppKitModalNetworkSelectButton(appKit: widget.appKit!),
           ] else ...[
-            const Text('AppKit not initialized'),
+            FilledButton.icon(
+              onPressed: widget.initAppKit,
+              icon: const Icon(Icons.refresh),
+              label: Text('Refresh'),
+              style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
+            ),
           ],
         ],
       ),

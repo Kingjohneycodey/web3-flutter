@@ -1,5 +1,7 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:reown_appkit/reown_appkit.dart';
+import 'package:web3_flutter_app/chains/chains.dart';
 
 class ContractCallTab extends StatefulWidget {
   final ReownAppKitModal? appKit;
@@ -11,103 +13,87 @@ class ContractCallTab extends StatefulWidget {
 }
 
 class _ContractCallTabState extends State<ContractCallTab> {
-  final _transactionDataController = TextEditingController();
-  final _nonceController = TextEditingController();
-  String? _signedTransaction;
+  int? _counter;
+  String? _lastTransactionHash;
   bool _isLoading = false;
 
-  Future<void> _signCounterTransaction() async {
+  @override
+  void initState() {
+    super.initState();
+    _loadCounterValue();
+  }
+
+  Future<void> _loadCounterValue() async {
+    if (widget.appKit == null || !widget.appKit!.isConnected) return;
+
+    try {
+      final chainId = widget.appKit!.selectedChain?.chainId ?? 'eip155:11155111';
+      if (!chainId.startsWith('eip155:11155111')) return; // Only Sepolia supported
+
+      final namespace = NamespaceUtils.getNamespaceFromChain(chainId);
+      final address = widget.appKit!.session?.getAddress(namespace);
+
+      if (address != null) {
+        final rpcUrl = 'https://sepolia.drpc.org';
+        final counterValue = await getUserCounterValue(rpcUrl, address);
+        setState(() => _counter = counterValue);
+      }
+    } catch (e) {
+      log('Error loading counter value: $e');
+      _showSnackBar('Error loading counter value: $e');
+    }
+  }
+
+  Future<void> _incrementCounter() async => await _executeContractCall('increment');
+  Future<void> _decrementCounter() async => await _executeContractCall('decrement');
+  Future<void> _resetCounter() async => await _executeContractCall('reset');
+
+  Future<void> _executeContractCall(String functionName) async {
     if (widget.appKit == null || !widget.appKit!.isConnected) {
       _showSnackBar('Please connect a wallet first');
       return;
     }
 
-    if (_transactionDataController.text.isEmpty) {
-      _showSnackBar('Please enter transaction data to sign');
-      return;
-    }
-
     setState(() {
       _isLoading = true;
-      _signedTransaction = null;
+      _lastTransactionHash = null;
     });
 
     try {
       final chainId = widget.appKit!.selectedChain?.chainId ?? 'eip155:11155111';
+      if (!chainId.startsWith('eip155:11155111')) throw Exception('Please switch to Sepolia network');
       final namespace = NamespaceUtils.getNamespaceFromChain(chainId);
       final address = widget.appKit!.session!.getAddress(namespace);
+      if (address == null) throw Exception('No wallet address found');
 
-      if (address == null) {
-        throw Exception('No wallet address found');
-      }
+      final data = switch (functionName) {
+        'increment' => generateEvmIncrementTxData(),
+        'decrement' => generateEvmDecrementTxData(),
+        'reset' => generateEvmResetTxData(),
+        _ => throw Exception('Unknown function: $functionName'),
+      };
 
-      final transactionData = _transactionDataController.text.trim();
+      final transaction = {'from': address, 'to': flutterCounterAddress, 'value': '0x0', 'data': data};
+      final result = await widget.appKit!.request(
+        topic: widget.appKit!.session!.topic,
+        chainId: chainId,
+        request: SessionRequestParams(method: 'eth_sendTransaction', params: [transaction]),
+      );
 
-      if (chainId.startsWith('solana:')) {
-        // Solana transaction signing
-        await _signSolanaTransaction(chainId, transactionData);
-      } else {
-        // Ethereum transaction signing
-        await _signEthereumTransaction(chainId, address, transactionData);
-      }
-
-      _showSnackBar('Transaction signed successfully!');
+      setState(() => _lastTransactionHash = '$result');
+      _showSnackBar('Transaction submitted successfully!');
+      await Future.delayed(const Duration(seconds: 2));
+      await _loadCounterValue();
     } catch (e) {
-      print('Error signing transaction: $e');
-      _showSnackBar('Error: ${e.toString()}');
+      log('Error executing contract call: $e');
+      _showSnackBar('Error: $e');
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      setState(() => _isLoading = false);
     }
-  }
-
-  Future<void> _signEthereumTransaction(String chainId, String address, String transactionData) async {
-    // Create transaction object for Ethereum
-    final toAddress = '0xd46e8dd67c5d32be8d46e8dd67c5d32be8058bb8eb970870f';
-    final nonce = _nonceController.text.isEmpty ? null : int.tryParse(_nonceController.text);
-
-    Map<String, dynamic> transaction = {
-      'from': address,
-      'to': toAddress,
-      'value': '0x0', // 0 ETH
-      'data': transactionData.startsWith('0x') ? transactionData : '0x$transactionData',
-    };
-
-    if (nonce != null) {
-      transaction['nonce'] = '0x${nonce.toRadixString(16)}';
-    }
-
-    // Send the transaction for signing
-    final result = await widget.appKit!.request(
-      topic: widget.appKit!.session!.topic,
-      chainId: chainId,
-      request: SessionRequestParams(method: 'eth_sendTransaction', params: [transaction]),
-    );
-
-    setState(() {
-      _signedTransaction = result.toString();
-    });
-  }
-
-  Future<void> _signSolanaTransaction(String chainId, String transactionData) async {
-    // For Solana, we use signMessage or signTransaction
-    // This is a simplified example - in reality you'd construct a proper Solana transaction
-    final result = await widget.appKit!.request(
-      topic: widget.appKit!.session!.topic,
-      chainId: chainId,
-      request: SessionRequestParams(
-        method: 'solana_signMessage',
-        params: {'message': transactionData, 'display': 'utf8'},
-      ),
-    );
-
-    setState(() {
-      _signedTransaction = result.toString();
-    });
   }
 
   void _showSnackBar(String message) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
@@ -115,13 +101,6 @@ class _ContractCallTabState extends State<ContractCallTab> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    _transactionDataController.dispose();
-    _nonceController.dispose();
-    super.dispose();
   }
 
   @override
@@ -140,17 +119,17 @@ class _ContractCallTabState extends State<ContractCallTab> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(color: colorScheme.primaryContainer, borderRadius: BorderRadius.circular(12)),
-                child: Icon(Icons.edit_note, color: colorScheme.onPrimaryContainer, size: 22),
+                child: Icon(Icons.calculate, color: colorScheme.onPrimaryContainer, size: 22),
               ),
               const SizedBox(width: 16),
               const Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Sign Transaction', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                    Text('Smart Contract Counter', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
                     SizedBox(height: 4),
                     Text(
-                      'Sign transactions for Ethereum or Solana networks',
+                      'Interact with a deployed counter smart contract on Sepolia',
                       style: TextStyle(fontSize: 12, color: Colors.grey),
                     ),
                   ],
@@ -160,22 +139,24 @@ class _ContractCallTabState extends State<ContractCallTab> {
           ),
           const SizedBox(height: 32),
           if (!isConnected)
-            Card(
-              color: colorScheme.errorContainer,
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Row(
-                  children: [
-                    Icon(Icons.warning_amber_rounded, color: colorScheme.onErrorContainer),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'Please connect a wallet in the Connect tab first',
-                        style: TextStyle(color: colorScheme.onErrorContainer, fontWeight: FontWeight.w500),
-                      ),
+            Container(
+              padding: const EdgeInsets.all(12.0),
+              decoration: BoxDecoration(
+                color: colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: colorScheme.outline.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, color: colorScheme.onSurfaceVariant, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Connect to Sepolia testnet to interact with the smart contract',
+                      style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           if (!isConnected) const SizedBox(height: 24),
@@ -183,65 +164,93 @@ class _ContractCallTabState extends State<ContractCallTab> {
             child: Padding(
               padding: const EdgeInsets.all(20.0),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  const Text(
-                    'Transaction Data',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey),
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: _transactionDataController,
-                    enabled: isConnected && !_isLoading,
-                    style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
-                    maxLines: 6,
-                    decoration: const InputDecoration(
-                      hintText:
-                          'For Ethereum: {"to": "0x...", "value": "0x0", "data": "0x..."}\nFor Solana: Message text or base58 transaction',
-                      prefixIcon: Icon(Icons.code),
-                      helperText: 'Enter transaction data (format depends on network)',
+                  const Text('Counter', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 24),
+                  Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: colorScheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(16),
                     ),
-                  ),
-                  const SizedBox(height: 20),
-                  const Text(
-                    'Nonce (Optional)',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey),
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: _nonceController,
-                    enabled: isConnected && !_isLoading,
-                    decoration: const InputDecoration(
-                      hintText: '0',
-                      prefixIcon: Icon(Icons.numbers),
-                      helperText: 'Ethereum nonce (leave empty for auto, N/A for Solana)',
-                    ),
-                    keyboardType: TextInputType.number,
+                    child: _isLoading
+                        ? CupertinoActivityIndicator(color: colorScheme.onPrimaryContainer)
+                        : Text(
+                            '${_counter ?? '---'}',
+                            style: TextStyle(
+                              fontSize: 48,
+                              fontWeight: FontWeight.bold,
+                              color: colorScheme.onPrimaryContainer,
+                            ),
+                          ),
                   ),
                   const SizedBox(height: 24),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed: (isConnected && !_isLoading) ? _signCounterTransaction : null,
-                      icon: _isLoading
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                              ),
-                            )
-                          : const Icon(Icons.edit_note),
-                      label: Text(_isLoading ? 'Signing...' : 'Sign Transaction'),
-                      style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
-                    ),
+                  Wrap(
+                    spacing: 16,
+                    runSpacing: 16,
+                    alignment: WrapAlignment.center,
+                    children: [
+                      Container(
+                        decoration: BoxDecoration(color: Colors.red.shade300, borderRadius: BorderRadius.circular(16)),
+                        child: IconButton(
+                          onPressed: (!_isLoading && isConnected) ? _decrementCounter : null,
+                          icon: _isLoading
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                  ),
+                                )
+                              : const Icon(Icons.remove),
+                          iconSize: 32,
+                          color: Colors.white,
+                          padding: const EdgeInsets.all(16),
+                        ),
+                      ),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: colorScheme.secondary,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: IconButton(
+                          onPressed: (!_isLoading && isConnected) ? _resetCounter : null,
+                          icon: _isLoading
+                              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                              : const Icon(Icons.refresh),
+                          iconSize: 32,
+                          color: colorScheme.onSecondary,
+                          padding: const EdgeInsets.all(16),
+                        ),
+                      ),
+                      Container(
+                        decoration: BoxDecoration(color: Colors.lightGreen, borderRadius: BorderRadius.circular(16)),
+                        child: IconButton(
+                          onPressed: (!_isLoading && isConnected) ? _incrementCounter : null,
+                          icon: _isLoading
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                  ),
+                                )
+                              : const Icon(Icons.add),
+                          iconSize: 32,
+                          color: Colors.white,
+                          padding: const EdgeInsets.all(16),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
           ),
-          if (_signedTransaction != null) ...[
+          if (_lastTransactionHash != null) ...[
             const SizedBox(height: 24),
             Card(
               color: colorScheme.primaryContainer,
@@ -255,7 +264,7 @@ class _ContractCallTabState extends State<ContractCallTab> {
                         Icon(Icons.check_circle, color: colorScheme.onPrimaryContainer, size: 20),
                         const SizedBox(width: 12),
                         Text(
-                          'Signed Transaction',
+                          'Transaction Hash',
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
@@ -273,7 +282,7 @@ class _ContractCallTabState extends State<ContractCallTab> {
                         border: Border.all(color: Colors.grey.shade300),
                       ),
                       child: SelectableText(
-                        _signedTransaction!,
+                        _lastTransactionHash!,
                         style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
                       ),
                     ),
@@ -301,10 +310,10 @@ class _ContractCallTabState extends State<ContractCallTab> {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  _buildInfoItem('Supports both Ethereum and Solana transaction signing'),
-                  _buildInfoItem('For Ethereum: Send transaction data as JSON or hex'),
-                  _buildInfoItem('For Solana: Send message text for signing'),
-                  _buildInfoItem('You will need to approve the signature in your wallet'),
+                  _buildInfoItem('Connect to Sepolia testnet to interact with the smart contract'),
+                  _buildInfoItem('Counter value is stored on-chain and synced across all users'),
+                  _buildInfoItem('Each button calls a function on the deployed FlutterCounter contract'),
+                  _buildInfoItem('Contract Address: 0x00E5ebC4b76082505F51bd8559c4EB0048f7E90e'),
                 ],
               ),
             ),

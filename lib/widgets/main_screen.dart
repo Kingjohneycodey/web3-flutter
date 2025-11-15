@@ -20,17 +20,14 @@ class _MainScreenState extends State<MainScreen> {
   @override
   void initState() {
     super.initState();
-    _initializeAppKit();
+    WidgetsBinding.instance.addPostFrameCallback((_) async => await _initializeAppKit());
   }
 
-  void _initializeAppKit() async {
+  Future<void> _initializeAppKit() async {
     try {
-      final projectId = dotenv.env['WALLETCONNECT_PROJECT_ID'] ?? '';
-      if (projectId.isEmpty) {
-        throw Exception('WALLETCONNECT_PROJECT_ID not found in .env file');
-      }
+      final projectId = dotenv.env['REOWN_PROJECT_ID'] ?? '';
+      if (projectId.isEmpty) throw Exception('REOWN_PROJECT_ID not found in .env file');
 
-      // Configure for both EVM and Solana support (default)
       _appKit = ReownAppKitModal(
         context: context,
         projectId: projectId,
@@ -41,7 +38,6 @@ class _MainScreenState extends State<MainScreen> {
           icons: ['https://storage.googleapis.com/cms-storage-bucket/icon_flutter.0dbfcc7a59cd1cf16282.png'],
           redirect: Redirect(native: 'fluttercounter://', linkMode: false),
         ),
-        // Featured wallets including Solana wallets
         featuredWalletIds: const {
           'c57ca95b47569778a828d19178114f4db188b89b763c899ba0be274e97267d96', // MetaMask
           'a797aa35c0fadbfc1a53e7f675162ed5226968b44a19ee3d24385c64d1d3c393', // Phantom (Solana)
@@ -51,9 +47,10 @@ class _MainScreenState extends State<MainScreen> {
       );
 
       await _appKit!.init();
+      log('adfs');
       setState(() {});
     } catch (e) {
-      print('Error initializing Reown AppKit: $e');
+      log('Error initializing Reown AppKit: $e');
     }
   }
 
@@ -75,7 +72,7 @@ class _MainScreenState extends State<MainScreen> {
             index: _currentIndex,
             children: [
               ReadChainTab(),
-              AuthenticationTab(appKit: _appKit),
+              AuthenticationTab(appKit: _appKit, initAppKit: _initializeAppKit),
               ContractCallTab(appKit: _appKit),
             ],
           ),

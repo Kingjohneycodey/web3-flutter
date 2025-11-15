@@ -78,3 +78,174 @@ Future<List<(String hash, String from, DateTime timestamp)>> getLatestEvmTransac
   await client.dispose();
   return txs;
 }
+
+// FlutterCounter contract constants
+const String flutterCounterAddress = '0x00E5ebC4b76082505F51bd8559c4EB0048f7E90e';
+const String flutterCounterAbi = '''[
+  {
+    "type": "constructor",
+    "inputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "decrement",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "increment",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "owner",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "reset",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "totalUsers",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "userCounters",
+    "inputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "int256",
+        "internalType": "int256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "userExists",
+    "inputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  }
+]''';
+
+// Create FlutterCounter contract instance
+DeployedContract createFlutterCounterContract() {
+  final abi = ContractAbi.fromJson(flutterCounterAbi, 'FlutterCounter');
+  final contractAddress = EthereumAddress.fromHex(flutterCounterAddress);
+  return DeployedContract(abi, contractAddress);
+}
+
+// Get user counter value from contract
+Future<int> getUserCounterValue(String rpcUrl, String userAddress) async {
+  final client = Web3Client(rpcUrl, Client());
+  final contract = createFlutterCounterContract();
+  final userEthAddress = EthereumAddress.fromHex(userAddress);
+
+  try {
+    final function = contract.function('userCounters');
+    final result = await client.call(contract: contract, function: function, params: [userEthAddress]);
+
+    if (result.isNotEmpty) {
+      final counterValue = (result[0] as BigInt).toInt();
+      await client.dispose();
+      return counterValue;
+    }
+  } catch (e) {
+    print('Error getting user counter: $e');
+  }
+
+  await client.dispose();
+  return 0;
+}
+
+// Get total users count
+Future<int> getTotalUsersCount(String rpcUrl) async {
+  final client = Web3Client(rpcUrl, Client());
+  final contract = createFlutterCounterContract();
+
+  try {
+    final function = contract.function('totalUsers');
+    final result = await client.call(contract: contract, function: function, params: []);
+
+    if (result.isNotEmpty) {
+      final totalUsers = (result[0] as BigInt).toInt();
+      await client.dispose();
+      return totalUsers;
+    }
+  } catch (e) {
+    print('Error getting total users: $e');
+  }
+
+  await client.dispose();
+  return 0;
+}
+
+// Generate transaction data for increment function
+String generateEvmIncrementTxData() {
+  final contract = createFlutterCounterContract();
+  final function = contract.function('increment');
+  final encodedData = function.encodeCall([]);
+  return '0x${encodedData.map((e) => e.toRadixString(16).padLeft(2, '0')).join()}';
+}
+
+// Generate transaction data for decrement function
+String generateEvmDecrementTxData() {
+  final contract = createFlutterCounterContract();
+  final function = contract.function('decrement');
+  final encodedData = function.encodeCall([]);
+  return '0x${encodedData.map((e) => e.toRadixString(16).padLeft(2, '0')).join()}';
+}
+
+// Generate transaction data for reset function
+String generateEvmResetTxData() {
+  final contract = createFlutterCounterContract();
+  final function = contract.function('reset');
+  final encodedData = function.encodeCall([]);
+  return '0x${encodedData.map((e) => e.toRadixString(16).padLeft(2, '0')).join()}';
+}
