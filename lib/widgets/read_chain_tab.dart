@@ -1,24 +1,21 @@
-import 'package:flutter/material.dart';
-import 'package:web3dart/web3dart.dart';
-import 'package:http/http.dart';
 import 'dart:convert';
 import 'dart:developer';
 
-// Tab 1: Balance Checker
-class BalanceTab extends StatefulWidget {
-  final Web3Client rpcClient;
+import 'package:flutter/material.dart';
+import 'package:http/http.dart';
+import 'package:web3dart/web3dart.dart';
 
-  const BalanceTab({super.key, required this.rpcClient});
+class ReadChainTab extends StatefulWidget {
+  const ReadChainTab({super.key});
 
   @override
-  State<BalanceTab> createState() => _BalanceTabState();
+  State<ReadChainTab> createState() => _ReadChainTabState();
 }
 
-class _BalanceTabState extends State<BalanceTab> {
-  final TextEditingController _addressController = TextEditingController();
-  final TextEditingController _tokenAddressController = TextEditingController();
-  final TextEditingController _tokenWalletAddressController =
-      TextEditingController();
+class _ReadChainTabState extends State<ReadChainTab> {
+  final _addressController = TextEditingController();
+  final _tokenAddressController = TextEditingController();
+  final _tokenWalletAddressController = TextEditingController();
   String _selectedChain = 'Sepolia';
   String? _balance;
   String? _tokenBalance;
@@ -28,46 +25,9 @@ class _BalanceTabState extends State<BalanceTab> {
   bool _isLoadingTransactions = false;
 
   final Map<String, Map<String, dynamic>> _chains = {
-    'Sepolia': {
-      'type': 'evm',
-      'rpc': 'https://ethereum-sepolia-rpc.publicnode.com',
-      'chainId': 11155111,
-    },
-    'Ethereum Mainnet': {
-      'type': 'evm',
-      'rpc': 'https://ethereum-rpc.publicnode.com',
-      'chainId': 1,
-    },
-    'Base': {
-      'type': 'evm',
-      'rpc': 'https://base-rpc.publicnode.com',
-      'chainId': 8453,
-    },
-    'Polygon': {
-      'type': 'evm',
-      'rpc': 'https://polygon-rpc.publicnode.com',
-      'chainId': 137,
-    },
-    'Solana': {
-      'type': 'solana',
-      'rpc': 'https://api.mainnet-beta.solana.com',
-      'chainId': null,
-    },
-    'Solana Devnet': {
-      'type': 'solana',
-      'rpc': 'https://api.devnet.solana.com',
-      'chainId': null,
-    },
-    'Sui': {
-      'type': 'sui',
-      'rpc': 'https://fullnode.mainnet.sui.io:443',
-      'chainId': null,
-    },
-    'Sui Testnet': {
-      'type': 'sui',
-      'rpc': 'https://fullnode.testnet.sui.io:443',
-      'chainId': null,
-    },
+    'Sepolia': {'type': 'evm', 'rpc': 'https://sepolia.drpc.org', 'chainId': 11155111},
+    'Solana Devnet': {'type': 'solana', 'rpc': 'https://api.devnet.solana.com', 'chainId': null},
+    'Sui Testnet': {'type': 'sui', 'rpc': 'https://fullnode.testnet.sui.io:443', 'chainId': null},
   };
 
   Future<void> _fetchBalance() async {
@@ -98,7 +58,6 @@ class _BalanceTabState extends State<BalanceTab> {
           _isLoading = false;
         });
       } else if (chainType == 'solana') {
-        // Solana balance fetch via RPC
         final rpcUrl = chainInfo['rpc'] as String;
         final response = await Client().post(
           Uri.parse(rpcUrl),
@@ -124,7 +83,6 @@ class _BalanceTabState extends State<BalanceTab> {
           _isLoading = false;
         });
       } else if (chainType == 'sui') {
-        // Sui balance fetch via RPC
         final rpcUrl = chainInfo['rpc'] as String;
         final response = await Client().post(
           Uri.parse(rpcUrl),
@@ -170,8 +128,7 @@ class _BalanceTabState extends State<BalanceTab> {
   }
 
   Future<void> _fetchTokenBalance() async {
-    if (_tokenWalletAddressController.text.isEmpty ||
-        _tokenAddressController.text.isEmpty) {
+    if (_tokenWalletAddressController.text.isEmpty || _tokenAddressController.text.isEmpty) {
       _showSnackBar('Please enter wallet address and token address');
       return;
     }
@@ -203,11 +160,7 @@ class _BalanceTabState extends State<BalanceTab> {
         final function = contract.function('balanceOf');
 
         // Call the contract
-        final result = await client.call(
-          contract: contract,
-          function: function,
-          params: [walletEthAddress],
-        );
+        final result = await client.call(contract: contract, function: function, params: [walletEthAddress]);
 
         if (result.isNotEmpty) {
           final balance = result[0] as BigInt;
@@ -241,8 +194,7 @@ class _BalanceTabState extends State<BalanceTab> {
 
         final amount = data['result']['value']['amount'] as String;
         final decimals = data['result']['value']['decimals'] as int;
-        final tokenBalance =
-            BigInt.parse(amount) / BigInt.from(10).pow(decimals);
+        final tokenBalance = BigInt.parse(amount) / BigInt.from(10).pow(decimals);
 
         setState(() {
           _tokenBalance = '$tokenBalance Tokens';
@@ -268,8 +220,7 @@ class _BalanceTabState extends State<BalanceTab> {
         }
 
         final totalBalance = data['result']['totalBalance'] as String;
-        final tokenBalance =
-            BigInt.parse(totalBalance) / BigInt.from(10).pow(9);
+        final tokenBalance = BigInt.parse(totalBalance) / BigInt.from(10).pow(9);
 
         setState(() {
           _tokenBalance = '$tokenBalance Tokens';
@@ -366,11 +317,7 @@ class _BalanceTabState extends State<BalanceTab> {
             'params': [
               {
                 'filter': {'FromAddress': address},
-                'options': {
-                  'showInput': true,
-                  'showEffects': true,
-                  'showEvents': true,
-                },
+                'options': {'showInput': true, 'showEffects': true, 'showEvents': true},
               },
               null,
               10,
@@ -429,33 +376,17 @@ class _BalanceTabState extends State<BalanceTab> {
             children: [
               Container(
                 padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: colorScheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  Icons.account_balance,
-                  color: colorScheme.onPrimaryContainer,
-                  size: 22,
-                ),
+                decoration: BoxDecoration(color: colorScheme.primaryContainer, borderRadius: BorderRadius.circular(12)),
+                child: Icon(Icons.account_balance, color: colorScheme.onPrimaryContainer, size: 22),
               ),
               const SizedBox(width: 16),
               const Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Check Balance',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    Text('Check Balance', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
                     SizedBox(height: 4),
-                    Text(
-                      'View wallet balance on any chain',
-                      style: TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
+                    Text('View wallet balance on any chain', style: TextStyle(fontSize: 12, color: Colors.grey)),
                   ],
                 ),
               ),
@@ -470,11 +401,7 @@ class _BalanceTabState extends State<BalanceTab> {
                 children: [
                   const Text(
                     'Wallet Address',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey,
-                    ),
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey),
                   ),
                   const SizedBox(height: 8),
                   TextField(
@@ -488,18 +415,12 @@ class _BalanceTabState extends State<BalanceTab> {
                   const SizedBox(height: 20),
                   const Text(
                     'Select Chain',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey,
-                    ),
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey),
                   ),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
                     value: _selectedChain,
-                    decoration: const InputDecoration(
-                      prefixIcon: Icon(Icons.public),
-                    ),
+                    decoration: const InputDecoration(prefixIcon: Icon(Icons.public)),
                     items: _chains.keys.map((String chain) {
                       final chainType = _chains[chain]!['type'] as String;
                       return DropdownMenuItem(
@@ -509,10 +430,7 @@ class _BalanceTabState extends State<BalanceTab> {
                             Text(chain, style: const TextStyle(fontSize: 13)),
                             const SizedBox(width: 8),
                             Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 2,
-                              ),
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(
                                 color: chainType == 'evm'
                                     ? Colors.blue.shade50
@@ -557,16 +475,12 @@ class _BalanceTabState extends State<BalanceTab> {
                               height: 20,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  Colors.white,
-                                ),
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                               ),
                             )
                           : const Icon(Icons.search),
                       label: Text(_isLoading ? 'Fetching...' : 'Fetch Balance'),
-                      style: FilledButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                      ),
+                      style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
                     ),
                   ),
                 ],
@@ -576,9 +490,7 @@ class _BalanceTabState extends State<BalanceTab> {
           if (_balance != null) ...[
             const SizedBox(height: 24),
             Card(
-              color: _balance!.startsWith('Error')
-                  ? colorScheme.errorContainer
-                  : colorScheme.primaryContainer,
+              color: _balance!.startsWith('Error') ? colorScheme.errorContainer : colorScheme.primaryContainer,
               child: Padding(
                 padding: const EdgeInsets.all(20.0),
                 child: Column(
@@ -587,9 +499,7 @@ class _BalanceTabState extends State<BalanceTab> {
                     Row(
                       children: [
                         Icon(
-                          _balance!.startsWith('Error')
-                              ? Icons.error_outline
-                              : Icons.account_balance_wallet,
+                          _balance!.startsWith('Error') ? Icons.error_outline : Icons.account_balance_wallet,
                           color: _balance!.startsWith('Error')
                               ? colorScheme.onErrorContainer
                               : colorScheme.onPrimaryContainer,
@@ -630,21 +540,11 @@ class _BalanceTabState extends State<BalanceTab> {
             children: [
               Container(
                 padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: colorScheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(
-                  Icons.account_balance_wallet,
-                  color: colorScheme.onPrimaryContainer,
-                  size: 22,
-                ),
+                decoration: BoxDecoration(color: colorScheme.primaryContainer, borderRadius: BorderRadius.circular(10)),
+                child: Icon(Icons.account_balance_wallet, color: colorScheme.onPrimaryContainer, size: 22),
               ),
               const SizedBox(width: 12),
-              const Text(
-                'Token Balance',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
+              const Text('Token Balance', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             ],
           ),
           const SizedBox(height: 16),
@@ -656,19 +556,12 @@ class _BalanceTabState extends State<BalanceTab> {
                 children: [
                   const Text(
                     'Wallet Address',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey,
-                    ),
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey),
                   ),
                   const SizedBox(height: 8),
                   TextField(
                     controller: _tokenWalletAddressController,
-                    style: const TextStyle(
-                      fontFamily: 'monospace',
-                      fontSize: 12,
-                    ),
+                    style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
                     decoration: const InputDecoration(
                       hintText: '0x742d35Cc6634C0532925a3b8...',
                       prefixIcon: Icon(Icons.wallet, size: 20),
@@ -677,18 +570,12 @@ class _BalanceTabState extends State<BalanceTab> {
                   const SizedBox(height: 16),
                   const Text(
                     'Select Chain',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey,
-                    ),
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey),
                   ),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
                     value: _selectedChain,
-                    decoration: const InputDecoration(
-                      prefixIcon: Icon(Icons.public, size: 20),
-                    ),
+                    decoration: const InputDecoration(prefixIcon: Icon(Icons.public, size: 20)),
                     items: _chains.keys.map((String chain) {
                       final chainType = _chains[chain]!['type'] as String;
                       return DropdownMenuItem(
@@ -698,10 +585,7 @@ class _BalanceTabState extends State<BalanceTab> {
                             Text(chain, style: const TextStyle(fontSize: 13)),
                             const SizedBox(width: 8),
                             Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 2,
-                              ),
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(
                                 color: chainType == 'evm'
                                     ? Colors.blue.shade50
@@ -738,23 +622,13 @@ class _BalanceTabState extends State<BalanceTab> {
                   const SizedBox(height: 16),
                   const Text(
                     'Token Address',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey,
-                    ),
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey),
                   ),
                   const SizedBox(height: 8),
                   TextField(
                     controller: _tokenAddressController,
-                    style: const TextStyle(
-                      fontFamily: 'monospace',
-                      fontSize: 12,
-                    ),
-                    decoration: const InputDecoration(
-                      hintText: '0x...',
-                      prefixIcon: Icon(Icons.token, size: 20),
-                    ),
+                    style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+                    decoration: const InputDecoration(hintText: '0x...', prefixIcon: Icon(Icons.token, size: 20)),
                   ),
                   const SizedBox(height: 20),
                   SizedBox(
@@ -767,9 +641,7 @@ class _BalanceTabState extends State<BalanceTab> {
                               height: 18,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  Colors.white,
-                                ),
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                               ),
                             )
                           : const Icon(Icons.search, size: 18),
@@ -777,9 +649,7 @@ class _BalanceTabState extends State<BalanceTab> {
                         _isTokenLoading ? 'Fetching...' : 'Fetch Token Balance',
                         style: const TextStyle(fontSize: 13),
                       ),
-                      style: FilledButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
+                      style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
                     ),
                   ),
                 ],
@@ -789,9 +659,7 @@ class _BalanceTabState extends State<BalanceTab> {
           if (_tokenBalance != null) ...[
             const SizedBox(height: 16),
             Card(
-              color: _tokenBalance!.startsWith('Error')
-                  ? colorScheme.errorContainer
-                  : colorScheme.primaryContainer,
+              color: _tokenBalance!.startsWith('Error') ? colorScheme.errorContainer : colorScheme.primaryContainer,
               child: Padding(
                 padding: const EdgeInsets.all(20.0),
                 child: Column(
@@ -800,9 +668,7 @@ class _BalanceTabState extends State<BalanceTab> {
                     Row(
                       children: [
                         Icon(
-                          _tokenBalance!.startsWith('Error')
-                              ? Icons.error_outline
-                              : Icons.token,
+                          _tokenBalance!.startsWith('Error') ? Icons.error_outline : Icons.token,
                           color: _tokenBalance!.startsWith('Error')
                               ? colorScheme.onErrorContainer
                               : colorScheme.onPrimaryContainer,
@@ -810,9 +676,7 @@ class _BalanceTabState extends State<BalanceTab> {
                         ),
                         const SizedBox(width: 12),
                         Text(
-                          _tokenBalance!.startsWith('Error')
-                              ? 'Error'
-                              : 'Token Balance',
+                          _tokenBalance!.startsWith('Error') ? 'Error' : 'Token Balance',
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
@@ -845,21 +709,11 @@ class _BalanceTabState extends State<BalanceTab> {
             children: [
               Container(
                 padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: colorScheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(
-                  Icons.history,
-                  color: colorScheme.onPrimaryContainer,
-                  size: 22,
-                ),
+                decoration: BoxDecoration(color: colorScheme.primaryContainer, borderRadius: BorderRadius.circular(10)),
+                child: Icon(Icons.history, color: colorScheme.onPrimaryContainer, size: 22),
               ),
               const SizedBox(width: 12),
-              const Text(
-                'Latest Transactions',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
+              const Text('Latest Transactions', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             ],
           ),
           const SizedBox(height: 16),
@@ -872,9 +726,7 @@ class _BalanceTabState extends State<BalanceTab> {
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton.icon(
-                      onPressed:
-                          (_isLoadingTransactions ||
-                              _addressController.text.isEmpty)
+                      onPressed: (_isLoadingTransactions || _addressController.text.isEmpty)
                           ? null
                           : _fetchTransactions,
                       icon: _isLoadingTransactions
@@ -883,21 +735,15 @@ class _BalanceTabState extends State<BalanceTab> {
                               height: 18,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  Colors.white,
-                                ),
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                               ),
                             )
                           : const Icon(Icons.refresh, size: 18),
                       label: Text(
-                        _isLoadingTransactions
-                            ? 'Loading...'
-                            : 'Fetch Transactions',
+                        _isLoadingTransactions ? 'Loading...' : 'Fetch Transactions',
                         style: const TextStyle(fontSize: 13),
                       ),
-                      style: FilledButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
+                      style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
                     ),
                   ),
                   if (_transactions.isNotEmpty) ...[
@@ -909,11 +755,7 @@ class _BalanceTabState extends State<BalanceTab> {
                         padding: const EdgeInsets.only(bottom: 12),
                         child: Row(
                           children: [
-                            Icon(
-                              Icons.receipt_long,
-                              size: 18,
-                              color: Colors.grey,
-                            ),
+                            Icon(Icons.receipt_long, size: 18, color: Colors.grey),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Column(
@@ -930,19 +772,13 @@ class _BalanceTabState extends State<BalanceTab> {
                                   const SizedBox(height: 4),
                                   Text(
                                     'Nonce: ${tx['nonce']}',
-                                    style: const TextStyle(
-                                      fontSize: 11,
-                                      color: Colors.grey,
-                                    ),
+                                    style: const TextStyle(fontSize: 11, color: Colors.grey),
                                   ),
                                 ],
                               ),
                             ),
                             Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
-                              ),
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                               decoration: BoxDecoration(
                                 color: Colors.orange.shade50,
                                 borderRadius: BorderRadius.circular(6),
@@ -963,10 +799,7 @@ class _BalanceTabState extends State<BalanceTab> {
                   ] else if (!_isLoadingTransactions) ...[
                     const SizedBox(height: 16),
                     const Center(
-                      child: Text(
-                        'No transactions found',
-                        style: TextStyle(fontSize: 12, color: Colors.grey),
-                      ),
+                      child: Text('No transactions found', style: TextStyle(fontSize: 12, color: Colors.grey)),
                     ),
                   ],
                 ],

@@ -15,7 +15,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Web3 Flutter App',
+      title: 'Web3 In Flutter',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.theme,
       home: const MainScreen(),
