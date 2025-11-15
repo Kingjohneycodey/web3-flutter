@@ -27,22 +27,17 @@ class _AuthenticationTabState extends State<AuthenticationTab> {
 
   void _setupEventListeners() {
     if (widget.appKit != null) {
-      // Subscribe to connection events
       widget.appKit!.onModalConnect.subscribe((_) => _updateConnectionState());
       widget.appKit!.onModalDisconnect.subscribe((_) => _updateConnectionState());
       widget.appKit!.onModalUpdate.subscribe((_) => _updateConnectionState());
       widget.appKit!.onModalNetworkChange.subscribe((_) => _updateConnectionState());
-
-      // Listen to balance changes
       widget.appKit!.balanceNotifier.addListener(_onBalanceChange);
     }
   }
 
   void _onBalanceChange() {
     if (mounted && widget.appKit != null) {
-      setState(() {
-        _balance = widget.appKit!.balanceNotifier.value;
-      });
+      setState(() => _balance = widget.appKit!.balanceNotifier.value);
     }
   }
 
@@ -70,7 +65,7 @@ class _AuthenticationTabState extends State<AuthenticationTab> {
           balanceLabel = 'ETH';
         }
       } catch (e) {
-        print('Error getting address: $e');
+        log('Error getting address: $e');
         address = 'Error getting address';
       }
     }
